@@ -2,7 +2,7 @@ streamlit
 tensorflow-cpu
 opencv-python-headless
 numpy
-mediapipe
+mediapipe==0.10.9
 wandb
 Pillow
 gTTS
