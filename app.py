@@ -20,10 +20,16 @@ st.set_page_config(
     layout="wide"
 )
 
-# Initialize MediaPipe
-mp_hands = mp.solutions.hands
-mp_drawing = mp.solutions.drawing_utils
-mp_drawing_styles = mp.solutions.drawing_styles
+# Initialize MediaPipe - using string access to avoid attribute errors
+try:
+    mp_hands = getattr(mp.solutions, 'hands')
+    mp_drawing = getattr(mp.solutions, 'drawing_utils')
+    mp_drawing_styles = getattr(mp.solutions, 'drawing_styles')
+except AttributeError:
+    mp_hands = None
+    mp_drawing = None
+    mp_drawing_styles = None
+    st.error("MediaPipe components not available")
 
 # Initialize session state
 if 'hands' not in st.session_state:
