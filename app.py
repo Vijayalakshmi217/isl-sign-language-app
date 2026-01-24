@@ -41,9 +41,21 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==================== INITIALIZE MEDIAPIPE ====================
-mp_hands = mp.solutions.hands
-mp_drawing = mp.solutions.drawing_utils
-mp_drawing_styles = mp.solutions.drawing_styles
+try:
+    # Try standard import (MediaPipe 0.10.x)
+    mp_hands = mp.solutions.hands
+    mp_drawing = mp.solutions.drawing_utils
+    mp_drawing_styles = mp.solutions.drawing_styles
+except AttributeError:
+    # Fallback for different MediaPipe versions
+    try:
+        from mediapipe.python.solutions import hands as mp_hands_module
+        from mediapipe.python.solutions import drawing_utils as mp_drawing
+        from mediapipe.python.solutions import drawing_styles as mp_drawing_styles
+        mp_hands = mp_hands_module
+    except ImportError:
+        st.error("❌ MediaPipe import failed. Please check installation.")
+        st.stop()
 
 # ==================== SESSION STATE ====================
 if 'model' not in st.session_state:
@@ -69,7 +81,7 @@ def extract_keypoints(results):
             for landmark in hand_landmarks.landmark:
                 keypoints.extend([landmark.x, landmark.y, landmark.z])
             return np.array(keypoints)
-    return np.zeros(63)  # 21 landmarks * 3 coordinates
+    return np.zeros(63)
 
 def preprocess_keypoints(keypoints, target_shape=(63,)):
     """Preprocess keypoints for model input"""
@@ -138,13 +150,16 @@ with st.sidebar:
     
     # Initialize hands detector
     if st.button("Initialize Detector"):
-        st.session_state.hands = mp_hands.Hands(
-            static_image_mode=False,
-            max_num_hands=max_hands,
-            min_detection_confidence=min_detection_confidence,
-            min_tracking_confidence=min_tracking_confidence
-        )
-        st.success("✅ Hand detector initialized!")
+        try:
+            st.session_state.hands = mp_hands.Hands(
+                static_image_mode=False,
+                max_num_hands=max_hands,
+                min_detection_confidence=min_detection_confidence,
+                min_tracking_confidence=min_tracking_confidence
+            )
+            st.success("✅ Hand detector initialized!")
+        except Exception as e:
+            st.error(f"❌ Error initializing detector: {str(e)}")
     
     st.markdown("---")
     st.subheader("📊 Statistics")
@@ -188,15 +203,12 @@ with tab1:
                         st.error("Failed to read from camera")
                         break
                     
-                    # Flip and convert BGR to RGB
                     frame = cv2.flip(frame, 1)
                     image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     image.flags.writeable = False
                     
-                    # Process with MediaPipe
                     results = st.session_state.hands.process(image)
                     
-                    # Draw landmarks
                     image.flags.writeable = True
                     if results.multi_hand_landmarks:
                         for hand_landmarks in results.multi_hand_landmarks:
@@ -208,19 +220,16 @@ with tab1:
                                 mp_drawing_styles.get_default_hand_connections_style()
                             )
                         
-                        # Extract and predict
                         keypoints = extract_keypoints(results)
                         sign, confidence = predict_sign(keypoints, st.session_state.model)
                         
                         if sign and confidence > 0.7:
-                            # Add to prediction history
                             st.session_state.predictions.append({
                                 'sign': sign,
                                 'confidence': confidence,
                                 'time': datetime.now()
                             })
                             
-                            # Display prediction on image
                             cv2.putText(
                                 image,
                                 f"{sign}: {confidence:.2f}",
@@ -231,21 +240,18 @@ with tab1:
                                 3
                             )
                             
-                            # Update results
                             result_placeholder.markdown(
                                 f'<div class="prediction-box">{sign}</div>',
                                 unsafe_allow_html=True
                             )
                             confidence_placeholder.progress(float(confidence))
                             
-                            # Show recent predictions
                             recent = st.session_state.predictions[-5:]
                             history_text = "**Recent Predictions:**\n\n"
                             for p in reversed(recent):
                                 history_text += f"- {p['sign']} ({p['confidence']:.1%})\n"
                             history_placeholder.markdown(history_text)
                     
-                    # Display frame
                     frame_placeholder.image(image, channels="RGB", use_container_width=True)
                 
                 cap.release()
@@ -260,7 +266,6 @@ with tab2:
     )
     
     if uploaded_file is not None:
-        # Read image
         file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
         image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -275,10 +280,8 @@ with tab2:
             st.subheader("Detection Result")
             
             if st.session_state.hands and st.session_state.model:
-                # Process image
                 results = st.session_state.hands.process(image_rgb)
                 
-                # Draw landmarks
                 annotated_image = image_rgb.copy()
                 if results.multi_hand_landmarks:
                     for hand_landmarks in results.multi_hand_landmarks:
@@ -290,7 +293,6 @@ with tab2:
                             mp_drawing_styles.get_default_hand_connections_style()
                         )
                     
-                    # Predict
                     keypoints = extract_keypoints(results)
                     sign, confidence = predict_sign(keypoints, st.session_state.model)
                     
