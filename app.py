@@ -1,7 +1,7 @@
 ﻿import streamlit as st
 import cv2
 import numpy as np
-from datetime import datetime
+import sys
 import os
 
 # Page configuration
@@ -11,21 +11,21 @@ st.set_page_config(
     layout="wide"
 )
 
-# Try importing MediaPipe with detailed error handling
+# Initialize MediaPipe with explicit error handling
 MEDIAPIPE_AVAILABLE = False
-mp = None
-mp_hands = None
-mp_drawing = None
-mp_drawing_styles = None
-
 try:
     import mediapipe as mp
-    mp_hands = mp.solutions.hands
-    mp_drawing = mp.solutions.drawing_utils
-    mp_drawing_styles = mp.solutions.drawing_styles
+    from mediapipe.python.solutions import hands as mp_hands_module
+    from mediapipe.python.solutions import drawing_utils as mp_drawing
+    from mediapipe.python.solutions import drawing_styles as mp_drawing_styles
+    
+    mp_hands = mp_hands_module
     MEDIAPIPE_AVAILABLE = True
+    st.success("✅ MediaPipe loaded successfully!")
 except Exception as e:
-    st.error(f"MediaPipe Error: {str(e)}")
+    st.error(f"❌ MediaPipe initialization error: {str(e)}")
+    st.info(f"Python version: {sys.version}")
+    st.info(f"MediaPipe module location: {mp.__file__ if 'mp' in locals() else 'Not found'}")
 
 # Make TensorFlow optional
 try:
@@ -45,12 +45,10 @@ if 'model' not in st.session_state:
 st.title("🤟 Indian Sign Language Detection System")
 st.markdown("Real-time hand gesture recognition using MediaPipe and Deep Learning")
 
-# Show MediaPipe status at the top
+# Stop if MediaPipe not available
 if not MEDIAPIPE_AVAILABLE:
-    st.error("⚠️ MediaPipe is not available. Please check deployment logs.")
+    st.error("⚠️ Cannot proceed without MediaPipe. Check deployment logs.")
     st.stop()
-else:
-    st.success("✅ MediaPipe loaded successfully!")
 
 # Sidebar
 with st.sidebar:
@@ -58,10 +56,7 @@ with st.sidebar:
     
     # Show system status
     st.subheader("System Status")
-    if MEDIAPIPE_AVAILABLE:
-        st.success("✅ MediaPipe available")
-    else:
-        st.error("❌ MediaPipe not available")
+    st.success("✅ MediaPipe available")
     
     if KERAS_AVAILABLE:
         st.success("✅ TensorFlow available")
@@ -82,19 +77,16 @@ with st.sidebar:
     
     # Initialize detector
     if st.button("Initialize Hand Detector"):
-        if not MEDIAPIPE_AVAILABLE:
-            st.error("❌ MediaPipe not available!")
-        else:
-            try:
-                st.session_state.hands = mp_hands.Hands(
-                    static_image_mode=False,
-                    max_num_hands=2,
-                    min_detection_confidence=min_detection_confidence,
-                    min_tracking_confidence=min_tracking_confidence
-                )
-                st.success("✅ Hand detector initialized!")
-            except Exception as e:
-                st.error(f"❌ Error: {str(e)}")
+        try:
+            st.session_state.hands = mp_hands.Hands(
+                static_image_mode=False,
+                max_num_hands=2,
+                min_detection_confidence=min_detection_confidence,
+                min_tracking_confidence=min_tracking_confidence
+            )
+            st.success("✅ Hand detector initialized!")
+        except Exception as e:
+            st.error(f"❌ Error: {str(e)}")
     
     # Model loading (optional - only if TensorFlow available)
     if KERAS_AVAILABLE:
@@ -111,10 +103,10 @@ with st.sidebar:
             else:
                 st.warning("⚠️ Model file not found")
 
-# Sign classes (customize based on your model)
+# Sign classes
 SIGN_CLASSES = [
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  # Digits 0-9
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',  # Letters A-Z
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
     'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
     'U', 'V', 'W', 'X', 'Y', 'Z'
 ]
@@ -154,20 +146,15 @@ tab1, tab2, tab3 = st.tabs(["📹 Live Detection", "📸 Image Upload", "ℹ️ 
 
 with tab1:
     st.header("Live Camera Detection")
-    
     st.info("📌 Note: Webcam access may not work on deployed apps. Use 'Image Upload' tab instead.")
     
     if st.session_state.hands is None:
         st.warning("⚠️ Please initialize the hand detector from the sidebar first!")
-    else:
-        st.info("✅ Hand detector ready! (Camera features work best on localhost)")
 
 with tab2:
     st.header("Upload Image for Detection")
     
-    if not MEDIAPIPE_AVAILABLE:
-        st.error("MediaPipe is not available. Cannot process images.")
-    elif st.session_state.hands is None:
+    if st.session_state.hands is None:
         st.warning("⚠️ Please initialize the hand detector from the sidebar first!")
     else:
         uploaded_file = st.file_uploader(
@@ -223,7 +210,7 @@ with tab3:
     st.markdown("""
     ### 🎯 Indian Sign Language Detection System
     
-    This application uses advanced computer vision to detect and track hands in images.
+    This application uses computer vision to detect and track hands in images.
     
     ### 🔧 Technologies Used
     - **MediaPipe**: Hand landmark detection
@@ -236,33 +223,16 @@ with tab3:
     2. **Upload Image**: Go to "Image Upload" tab and upload a hand gesture image
     3. **View Results**: See the detected hand landmarks and predictions
     
-    ### ⚙️ Current Features
-    - Hand tracking with MediaPipe
-    - Support for detecting up to 2 hands simultaneously
+    ### 💡 Features
+    - Detects 0-9 digits and A-Z letters
     - Adjustable confidence thresholds
     - Visual feedback with hand landmarks
-    - Works without TensorFlow (hand detection only)
-    
-    ### 💡 Tips
-    - Upload clear images with good lighting
-    - Keep hands clearly visible in the frame
-    - Adjust confidence thresholds if needed
-    - Add TensorFlow for gesture prediction capabilities
-    
-    ### 🚀 Future Enhancements
-    - Train a model to recognize ISL gestures (A-Z)
-    - Add gesture vocabulary expansion
-    - Include sentence formation
     """)
     
-    # Show system status
     st.subheader("System Status")
     col1, col2 = st.columns(2)
     with col1:
-        if MEDIAPIPE_AVAILABLE:
-            st.metric("MediaPipe", "✅ Available")
-        else:
-            st.metric("MediaPipe", "❌ Not Available")
+        st.metric("MediaPipe", "✅ Available")
         st.metric("OpenCV", "✅ Installed")
     with col2:
         if KERAS_AVAILABLE:
@@ -275,14 +245,10 @@ with tab3:
         else:
             st.metric("Hand Detector", "❌ Not Initialized")
 
-# Footer
 st.markdown("---")
-st.markdown(
-    """
+st.markdown("""
     <div style='text-align: center'>
         <p>🤟 Indian Sign Language Detection System</p>
         <p>Powered by MediaPipe & Streamlit</p>
     </div>
-    """,
-    unsafe_allow_html=True
-)
+    """, unsafe_allow_html=True)
